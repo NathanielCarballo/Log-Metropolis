@@ -29,7 +29,7 @@ export function CityGrid() {
    * Lerps all building values toward their targets.
    * Using 0.03 for a "heavy" feel - buildings grow/shrink slowly like physical structures.
    */
-  useFrame((state, delta) => {
+  useFrame((_, delta) => {
     // Only interpolate if we have buildings (small optimization)
     if (buildingNames.length > 0) {
       interpolateCityState(delta, 0.03);

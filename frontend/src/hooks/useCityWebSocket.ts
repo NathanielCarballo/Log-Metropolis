@@ -10,7 +10,31 @@ import { useEffect, useRef } from 'react';
 import { useCityStore, updateCityState } from '../stores/cityStore';
 import type { CityStateMessage } from '../types';
 
-const WS_URL = 'ws://localhost:8000/ws';
+/**
+ * Determine WebSocket URL from environment or auto-detect.
+ * - Uses VITE_API_URL if set
+ * - Falls back to localhost:8000
+ * - Auto-switches to wss:// if page is served over HTTPS
+ */
+function getWebSocketUrl(): string {
+  const envUrl = import.meta.env.VITE_API_URL as string | undefined;
+
+  if (envUrl) {
+    return envUrl;
+  }
+
+  // Default fallback
+  const defaultHost = 'localhost:8000';
+  const wsPath = '/ws';
+
+  // Auto-detect protocol based on page protocol
+  const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const protocol = isSecure ? 'wss:' : 'ws:';
+
+  return `${protocol}//${defaultHost}${wsPath}`;
+}
+
+const WS_URL = getWebSocketUrl();
 const RECONNECT_DELAY_MS = 3000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 
