@@ -11,11 +11,11 @@
  * PRODUCTION MODE: Standard physics-based materials and lighting interaction.
  */
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Mesh } from 'three';
 import { Color, MeshStandardMaterial, MathUtils } from 'three';
-import { getBuildingState } from '../../stores/cityStore';
+import { getBuildingState, useCityStore } from '../../stores/cityStore';
 
 interface BuildingProps {
   serviceName: string;
@@ -33,6 +33,24 @@ const COLOR_DORMANT = new Color('#222233');  // Dark Blue/Grey
 
 export function Building({ serviceName }: BuildingProps) {
   const meshRef = useRef<Mesh>(null);
+  const setHovered = useCityStore((s) => s.setHovered);
+  const setSelected = useCityStore((s) => s.setSelected);
+
+  // Interaction handlers
+  const handlePointerEnter = useCallback(() => {
+    setHovered(serviceName);
+    document.body.style.cursor = 'pointer';
+  }, [serviceName, setHovered]);
+
+  const handlePointerLeave = useCallback(() => {
+    setHovered(null);
+    document.body.style.cursor = 'auto';
+  }, [setHovered]);
+
+  const handleClick = useCallback((e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    setSelected(serviceName);
+  }, [serviceName, setSelected]);
 
   // Use MeshStandardMaterial for lighting reaction + glow
   // toneMapped: false allows HDR values (>1.0) to trigger Bloom effect
@@ -116,6 +134,9 @@ export function Building({ serviceName }: BuildingProps) {
       material={material}
       castShadow
       receiveShadow
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+      onClick={handleClick}
     >
       <boxGeometry args={[BUILDING_WIDTH, 1, BUILDING_DEPTH]} />
     </mesh>
