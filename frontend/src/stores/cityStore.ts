@@ -197,6 +197,12 @@ interface CityStore {
   // Error message for UI
   errorMessage: string | null;
   setErrorMessage: (msg: string | null) => void;
+
+  // Phase 5: Interaction state
+  hoveredServiceId: string | null;
+  selectedServiceId: string | null;
+  setHovered: (id: string | null) => void;
+  setSelected: (id: string | null) => void;
 }
 
 export const useCityStore = create<CityStore>((set) => ({
@@ -209,4 +215,10 @@ export const useCityStore = create<CityStore>((set) => ({
 
   errorMessage: null,
   setErrorMessage: (msg) => set({ errorMessage: msg }),
+
+  // Phase 5: Interaction state
+  hoveredServiceId: null,
+  selectedServiceId: null,
+  setHovered: (id) => set({ hoveredServiceId: id }),
+  setSelected: (id) => set({ selectedServiceId: id }),
 }));
