@@ -32,7 +32,11 @@ Infra: Docker Compose
 
 [x] Phase 2: The Heartbeat (Aggregation & WebSockets)
 
-[ ] Phase 3: The City (R3F Visualization)
+[x] Phase 3: The City (R3F Visualization)
+
+[x] Phase 4: The Traffic
+
+[ ] Phase 5: The Interaction System
 
 ## ⚡ Quick Start (Phase 1)
 Start Infrastructure:
