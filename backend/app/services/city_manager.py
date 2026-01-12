@@ -1,7 +1,13 @@
 import asyncio
 import time
+import copy
+import threading
 from typing import Dict
 from app.schemas import LogEvent, BuildingState, WorldUpdate, GlobalStats, Severity
+
+THRESHOLD_DECAY = 10.0   # Seconds before "decaying" status
+THRESHOLD_PRUNE = 60.0   # Seconds before "pruned" status (tombstone)
+THRESHOLD_GC = 70.0      # Seconds before garbage collection (hard delete)
 
 class CityStateManager:
     """
@@ -19,10 +25,60 @@ class CityStateManager:
         - Health regenerates slowly over time
     """
 
+    def apply_entropy(self):
+        """
+        Scans services and applies lifecycle status based on last heartbeat.
+        Implements "tombstoning" - buildings are marked pruned before deletion
+        to give clients time to remove them from their local state.
+
+        Timeline:
+        - > 70s (THRESHOLD_GC): Hard delete (garbage collection)
+        - > 60s (THRESHOLD_PRUNE): Set status='pruned' (tombstone phase)
+        - > 10s (THRESHOLD_DECAY): Set status='decaying' (grey, no traffic)
+        - Else: Set status='active'
+
+        Note: Must be called while holding self._lock.
+        """
+        now = time.time()
+        keys_to_remove = []
+
+        for name, building in self.buildings.items():
+            delta = now - building.last_seen
+
+            if delta > THRESHOLD_GC:
+                # T+70s: Hard cleanup - remove from memory
+                keys_to_remove.append(name)
+            elif delta > THRESHOLD_PRUNE:
+                # T+60s: Tombstone phase - mark as pruned, keep in broadcast
+                # This gives clients 10 seconds to process the removal signal
+                building.status = "pruned"
+            elif delta > THRESHOLD_DECAY:
+                # T+10s: Decaying phase - replace with fresh instance
+                # NUCLEAR OPTION: Replace to kill ALL traffic history
+                current_last_seen = building.last_seen
+
+                # Create fresh BuildingState (all metrics default to 0)
+                new_building = BuildingState(name=name)
+
+                # Restore critical metadata
+                new_building.last_seen = current_last_seen
+                new_building.status = "decaying"
+
+                # Replace in memory
+                self.buildings[name] = new_building
+            else:
+                # Active phase - healthy building
+                building.status = "active"
+
+        # Sweep: Garbage collect tombstoned buildings
+        for key in keys_to_remove:
+            del self.buildings[key]
+
     def __init__(self):
         self.buildings: Dict[str, BuildingState] = {}
         self.tick_id = 0
         self.lock = asyncio.Lock()
+        self._lock = threading.Lock()
 
         # Simulation Config
         self.height_decay_rate = 0.95      # Load decays each tick
@@ -56,6 +112,7 @@ class CityStateManager:
     async def tick(self) -> WorldUpdate:
         """
         Run one frame of the simulation.
+        - Apply entropy (decay/prune stale services)
         - Height (load) decays over time
         - Health slowly regenerates toward full
         """
@@ -64,6 +121,9 @@ class CityStateManager:
             now = time.time()
             total_rps = 0
             total_errors = 0
+
+            # Step 1: Apply entropy - prune/decay stale buildings
+            self.apply_entropy()
 
             for name, building in self.buildings.items():
                 # 1. Decay Height (load decreases when traffic stops)
@@ -83,10 +143,16 @@ class CityStateManager:
                 building.request_count = 0
                 building.error_count = 0
 
+            # Step 2: Create snapshot of buildings
+            buildings_snapshot = {
+                name: building.model_copy()
+                for name, building in self.buildings.items()
+            }
+
             return WorldUpdate(
                 tick_id=self.tick_id,
                 timestamp=now,
-                buildings=self.buildings.copy(),
+                buildings=buildings_snapshot,
                 global_stats=GlobalStats(
                     total_rps=total_rps,
                     total_errors=total_errors,
