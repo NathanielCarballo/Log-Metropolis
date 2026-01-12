@@ -112,11 +112,26 @@ export function updateCityState(
   triggerReactiveUpdate: () => void
 ): void {
   const now = performance.now();
-  let hasNewBuildings = false;
+  let topologyChanged = false;
 
   // Process each building in the message
   for (const [serviceName, data] of Object.entries(buildingsData)) {
     const existing = cityStateRef.buildings.get(serviceName);
+
+    // Handle PRUNED status - remove building from local state
+    if (data.status === 'pruned') {
+      if (existing) {
+        // Remove from mutable state
+        cityStateRef.buildings.delete(serviceName);
+        // Remove from building order
+        const orderIndex = cityStateRef.buildingOrder.indexOf(serviceName);
+        if (orderIndex !== -1) {
+          cityStateRef.buildingOrder.splice(orderIndex, 1);
+        }
+        topologyChanged = true;
+      }
+      continue; // Skip further processing for pruned buildings
+    }
 
     if (existing) {
       // Update existing building's targets (no re-render)
@@ -142,14 +157,14 @@ export function updateCityState(
 
       cityStateRef.buildings.set(serviceName, newBuilding);
       cityStateRef.buildingOrder.push(serviceName);
-      hasNewBuildings = true;
+      topologyChanged = true;
     }
   }
 
   cityStateRef.lastUpdateTime = now;
 
-  // Only trigger React re-render if topology changed
-  if (hasNewBuildings) {
+  // Trigger React re-render if topology changed (spawn or prune)
+  if (topologyChanged) {
     triggerReactiveUpdate();
   }
 }
