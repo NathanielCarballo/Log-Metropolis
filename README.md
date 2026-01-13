@@ -28,12 +28,12 @@ graph TD
     end
     
     subgraph Control Plane
-    B -->|Consumer Group| C{Vantage Engine (FastAPI)}
+    B -->|Consumer Group| C{"Vantage Engine (FastAPI)"}
     C -->|State Aggregation| C
     end
     
     subgraph View Plane
-    C -->|WebSocket (10Hz)| D[React Client]
+    C -- "WebSocket (10Hz)" --> D[React Client]
     D -->|React Three Fiber| E[3D Canvas]
     end
 ```
